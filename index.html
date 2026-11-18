@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en" class="dark scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C# Expression Trees | Code as Data</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        csharp: {
+                            purple: '#9b4993',
+                            violet: '#68217a',
+                            glow: '#c084fc',
+                            bg: '#09090b',
+                            surface: '#121217',
+                            border: '#27272a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #09090b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
+
+        /* Subtle grid background */
+        .bg-grid {
+            background-size: 32px 32px;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        }
+
+        /* Node animations */
+        @keyframes nodePop {
+            0% { transform: scale(0.92); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-node {
+            animation: nodePop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Syntax Highlighting Colors */
+        .syn-kw { color: #c678dd; font-weight: 500; } /* Keyword */
+        .syn-type { color: #e5c07b; } /* Type / Class */
+        .syn-method { color: #61afef; } /* Method */
+        .syn-str { color: #98c379; } /* String */
+        .syn-num { color: #d19a66; } /* Number */
+        .syn-com { color: #5c6370; font-style: italic; } /* Comment */
+        .syn-var { color: #e06c75; } /* Variable / Param */
+        .syn-op { color: #56b6c2; } /* Operator */
+    </style>
+</head>
+<body class="bg-csharp-bg text-zinc-100 font-sans antialiased selection:bg-purple-500/30 selection:text-purple-200 overflow-x-hidden">
+
+    <!-- Toast Notification Container (Replaces alert()) -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Navigation Header -->
+    <header class="sticky top-0 z-40 border-b border-zinc-800/80 bg-csharp-bg/80 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20 border border-purple-400/20">
+                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
+                    </svg>
+                </div>
+                <div>
+                    <span class="font-bold text-base sm:text-lg tracking-tight text-white">C# Expression<span class="text-purple-400">Trees</span></span>
+                    <span class="hidden sm:inline-block ml-2 text-[11px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">System.Linq.Expressions</span>
+                </div>
+            </div>
+
+            <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-400">
+                <a href="#visualizer" class="hover:text-white transition-colors">Interactive AST</a>
+                <a href="#approaches" class="hover:text-white transition-colors">Lambda vs. API</a>
+                <a href="#use-cases" class="hover:text-white transition-colors">Why Use Them?</a>
+            </nav>
+
+            <a href="#visualizer" class="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-xs sm:text-sm font-medium border border-zinc-700 transition-all flex items-center gap-2">
+                <span>Try Playground</span>
+                <svg class="w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+            </a>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="relative pt-16 pb-20 sm:pt-24 sm:pb-28 bg-grid border-b border-zinc-800/80 overflow-hidden">
+        <!-- Ambient Radial Glow -->
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-purple-600/15 blur-[120px] rounded-full pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="max-w-3xl mx-auto text-center">
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900/90 border border-zinc-800 text-xs font-mono text-zinc-300 mb-6 shadow-sm">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>Code as Data • Runtime Compilation & Inspection</span>
+                </div>
+                
+                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.12] mb-6">
+                    Turn C# Code into an <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-fuchsia-300 to-indigo-400">Inspectable Data Tree</span>
+                </h1>
+                
+                <p class="text-base sm:text-lg text-zinc-400 leading-relaxed mb-10 max-w-2xl mx-auto">
+                    Unlike standard delegates that compile straight into opaque IL instructions, <code class="font-mono text-purple-300 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">Expression&lt;TDelegate&gt;</code> captures your logic as an Abstract Syntax Tree—enabling dynamic SQL generation, runtime mutation, and ultra-fast metaprogramming.
+                </p>
+
+                <!-- Quick Concept Pill Comparison -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto text-left">
+                    <div class="p-4 rounded-xl bg-zinc-900/70 border border-zinc-800/90 backdrop-blur-sm">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-mono uppercase tracking-wider text-zinc-500">Standard Delegate</span>
+                            <span class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">Executable IL</span>
+                        </div>
+                        <code class="text-xs sm:text-sm font-mono text-zinc-300 block">Func&lt;int, int, int&gt; fn = (a, b) => a + b;</code>
+                        <p class="text-xs text-zinc-500 mt-2">Compiled black-box machine code. Can only be invoked.</p>
+                    </div>
+
+                    <div class="p-4 rounded-xl bg-purple-950/20 border border-purple-500/30 backdrop-blur-sm shadow-lg shadow-purple-900/10">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-mono uppercase tracking-wider text-purple-400">Expression Tree</span>
+                            <span class="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">Data Structure</span>
+                        </div>
+                        <code class="text-xs sm:text-sm font-mono text-purple-200 block">Expression&lt;Func&lt;int, int, int&gt;&gt; ex = (a, b) => a + b;</code>
+                        <p class="text-xs text-purple-300/70 mt-2">Inspectable node hierarchy. Can be traversed, translated, or compiled.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Interactive Expression Tree Visualizer -->
+    <section id="visualizer" class="py-16 sm:py-24 border-b border-zinc-800/80">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
+                <div>
+                    <span class="text-xs font-mono uppercase tracking-widest text-purple-400 font-semibold">Interactive Lab</span>
+                    <h2 class="text-2xl sm:text-3xl font-bold text-white mt-1">Expression Tree AST Visualizer</h2>
+                    <p class="text-sm sm:text-base text-zinc-400 mt-2 max-w-2xl">
+                        Select a preset or type a simple C# lambda expression below to inspect its Abstract Syntax Tree nodes and simulate <code class="font-mono text-purple-300">.Compile()</code> execution.
+                    </p>
+                </div>
+
+                <!-- Preset Selector Pills -->
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="loadPreset('(a, b) => a + b')" class="preset-btn px-3 py-2 rounded-lg text-xs font-mono bg-purple-600/20 text-purple-300 border border-purple-500/40 hover:bg-purple-600/30 transition-all">
+                        (a, b) => a + b
+                    </button>
+                    <button onclick="loadPreset('(a, b) => a * b + 10')" class="preset-btn px-3 py-2 rounded-lg text-xs font-mono bg-zinc-900 text-zinc-300 border border-zinc-800 hover:border-zinc-700 transition-all">
+                        (a, b) => a * b + 10
+                    </button>
+                    <button onclick="loadPreset('(x) => x > 18')" class="preset-btn px-3 py-2 rounded-lg text-xs font-mono bg-zinc-900 text-zinc-300 border border-zinc-800 hover:border-zinc-700 transition-all">
+                        (x) => x > 18
+                    </button>
+                    <button onclick="loadPreset('(a, b) => (a - b) * 2')" class="preset-btn px-3 py-2 rounded-lg text-xs font-mono bg-zinc-900 text-zinc-300 border border-zinc-800 hover:border-zinc-700 transition-all">
+                        (a, b) => (a - b) * 2
+                    </button>
+                </div>
+            </div>
+
+            <!-- Main Interactive Workspace -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- Left Column: Input, Node Inspector & Simulator (5 cols) -->
+                <div class="lg:col-span-5 flex flex-col gap-6">
+                    
+                    <!-- Expression Input Card -->
+                    <div class="p-5 rounded-2xl bg-csharp-surface border border-zinc-800 shadow-xl">
+                        <label for="expr-input" class="block text-xs font-mono uppercase tracking-wider text-zinc-400 mb-2">
+                            C# Lambda Expression
+                        </label>
+                        <div class="flex gap-2">
+                            <input 
+                                id="expr-input" 
+                                type="text" 
+                                value="(a, b) => a + b" 
+                                placeholder="e.g., (a, b) => a + b"
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none font-mono text-sm text-white transition-all"
+                            >
+                            <button 
+                                onclick="parseAndRender()" 
+                                class="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 active:scale-[0.98] text-white font-medium text-sm transition-all shrink-0 shadow-lg shadow-purple-600/20">
+                                Parse
+                            </button>
+                        </div>
+                        <p id="parse-error" class="hidden text-xs text-rose-400 font-mono mt-2"></p>
+                        <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-zinc-500 font-mono">
+                            <span>Supports: <span class="text-zinc-300">+ - * / % > < >= <= == !=</span></span>
+                            <span>Params: <span class="text-zinc-300">a, b, x, y</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Selected Node Inspector -->
+                    <div class="p-5 rounded-2xl bg-csharp-surface border border-zinc-800 shadow-xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-mono uppercase tracking-wider text-zinc-400">Node Inspector</span>
+                            <span id="inspector-badge" class="text-[11px] font-mono px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">LambdaExpression</span>
+                        </div>
+                        <div id="node-inspector-content" class="space-y-2.5 text-sm">
+                            <!-- Dynamically populated when clicking any tree node -->
+                        </div>
+                    </div>
+
+                    <!-- Runtime Execution Simulator (.Compile()) -->
+                    <div class="p-5 rounded-2xl bg-gradient-to-b from-zinc-900 to-csharp-surface border border-zinc-800 shadow-xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                <span class="text-xs font-mono uppercase tracking-wider text-zinc-300 font-semibold">Simulated .Compile() Execution</span>
+                            </div>
+                            <span id="delegate-sig" class="text-xs font-mono text-purple-300">Func&lt;int, int, int&gt;</span>
+                        </div>
+                        
+                        <p class="text-xs text-zinc-400 mb-4">
+                            Plug in runtime arguments to invoke the compiled delegate:
+                        </p>
+
+                        <div id="param-inputs-container" class="grid grid-cols-2 gap-3 mb-4">
+                            <!-- Dynamically populated parameter inputs -->
+                        </div>
+
+                        <div class="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800/90 flex items-center justify-between">
+                            <div>
+                                <div class="text-[11px] font-mono text-zinc-500">compiledFunc(<span id="call-args-preview" class="text-zinc-300">5, 3</span>)</div>
+                                <div class="text-xs text-zinc-400 mt-0.5">Evaluated Output</div>
+                            </div>
+                            <div id="eval-result" class="text-2xl font-mono font-bold text-emerald-400">
+                                8
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Visual Interactive Node Tree Canvas (7 cols) -->
+                <div class="lg:col-span-7 flex flex-col">
+                    <div class="flex-1 rounded-2xl bg-zinc-950 border border-zinc-800 p-5 sm:p-6 flex flex-col relative overflow-hidden min-h-[460px]">
+                        <!-- Legend -->
+                        <div class="flex flex-wrap items-center justify-between gap-2 pb-4 mb-4 border-b border-zinc-800/80 z-10">
+                            <span class="text-xs font-mono text-zinc-400">Click any node in the tree to inspect its properties</span>
+                            <div class="flex flex-wrap items-center gap-3 text-[11px] font-mono">
+                                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-purple-500"></span>Lambda</span>
+                                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-sky-500"></span>Binary</span>
+                                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span>Parameter</span>
+                                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500"></span>Constant</span>
+                            </div>
+                        </div>
+
+                        <!-- Tree Visualization Container -->
+                        <div id="tree-canvas" class="flex-1 flex items-center justify-center overflow-auto py-4">
+                            <!-- Rendered recursively via JS -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Side-by-Side / Tabbed Comparison of Construction Approaches -->
+    <section id="approaches" class="py-16 sm:py-24 border-b border-zinc-800/80 bg-zinc-950/40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="max-w-3xl mb-10">
+                <span class="text-xs font-mono uppercase tracking-widest text-purple-400 font-semibold">Two Ways to Build</span>
+                <h2 class="text-2xl sm:text-3xl font-bold text-white mt-1">Lambda Syntax vs. Manual Factory API</h2>
+                <p class="text-sm sm:text-base text-zinc-400 mt-2">
+                    Both approaches below produce the <strong>exact same expression tree</strong> in memory for <code class="font-mono text-purple-300">(a, b) => a + b</code>. Click any highlighted step or line to see what the C# compiler or runtime is doing under the hood.
+                </p>
+            </div>
+
+            <!-- Mobile Tabs (Visible below lg) -->
+            <div class="flex lg:hidden p-1 rounded-xl bg-zinc-900 border border-zinc-800 mb-6">
+                <button id="tab-btn-1" onclick="switchApproachTab(1)" class="flex-1 py-2.5 text-xs font-semibold rounded-lg bg-purple-600 text-white transition-all">
+                    1. Lambda to Expression
+                </button>
+                <button id="tab-btn-2" onclick="switchApproachTab(2)" class="flex-1 py-2.5 text-xs font-semibold rounded-lg text-zinc-400 hover:text-white transition-all">
+                    2. Manual API Construction
+                </button>
+            </div>
+
+            <!-- Side-by-Side Grid on Desktop -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <!-- Approach 1: Lambda to Expression Tree -->
+                <div id="approach-card-1" class="rounded-2xl bg-csharp-surface border border-zinc-800 overflow-hidden flex flex-col shadow-xl">
+                    <div class="px-5 py-4 bg-zinc-900/90 border-b border-zinc-800 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">Approach 1</span>
+                                <h3 class="font-bold text-white text-base">Compiler-Generated (Lambda)</h3>
+                            </div>
+                            <p class="text-xs text-zinc-400 mt-1">Best when the expression structure is known at compile time.</p>
+                        </div>
+                        <button onclick="copyCode('code-block-1', 'Lambda Expression code copied!')" class="p-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 transition-all shrink-0" title="Copy C# Code">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Interactive Code Lines -->
+                    <div class="p-4 sm:p-5 font-mono text-xs sm:text-[13px] leading-relaxed overflow-x-auto bg-zinc-950 flex-1 space-y-1">
+                        <div class="text-zinc-500 select-none"><span class="syn-kw">using</span> System;</div>
+                        <div class="text-zinc-500 select-none pb-2"><span class="syn-kw">using</span> System.Linq.Expressions;</div>
+
+                        <div onclick="selectStep(1, 0)" class="step-row-1 cursor-pointer px-2.5 py-1.5 rounded-lg bg-purple-500/15 border border-purple-500/40 transition-all">
+                            <span class="syn-com">// 1. Assign lambda to Expression&lt;T&gt;</span><br>
+                            <span class="syn-type">Expression</span>&lt;<span class="syn-type">Func</span>&lt;<span class="syn-kw">int</span>, <span class="syn-kw">int</span>, <span class="syn-kw">int</span>&gt;&gt; addExpr = (<span class="syn-var">a</span>, <span class="syn-var">b</span>) =&gt; <span class="syn-var">a</span> + <span class="syn-var">b</span>;
+                        </div>
+
+                        <div onclick="selectStep(1, 1)" class="step-row-1 cursor-pointer px-2.5 py-1.5 rounded-lg hover:bg-zinc-900 border border-transparent transition-all">
+                            <span class="syn-com">// 2. Inspect AST nodes at runtime</span><br>
+                            <span class="syn-type">Console</span>.<span class="syn-method">WriteLine</span>(addExpr.Body.NodeType); <span class="syn-com">// Add</span><br>
+                            <span class="syn-type">Console</span>.<span class="syn-method">WriteLine</span>(addExpr.Parameters.Count); <span class="syn-com">// 2</span>
+                        </div>
+
+                        <div onclick="selectStep(1, 2)" class="step-row-1 cursor-pointer px-2.5 py-1.5 rounded-lg hover:bg-zinc-900 border border-transparent transition-all">
+                            <span class="syn-com">// 3. Compile tree into executable delegate</span><br>
+                            <span class="syn-type">Func</span>&lt;<span class="syn-kw">int</span>, <span class="syn-kw">int</span>, <span class="syn-kw">int</span>&gt; compiledFunc = addExpr.<span class="syn-method">Compile</span>();
+                        </div>
+
+                        <div onclick="selectStep(1, 3)" class="step-row-1 cursor-pointer px-2.5 py-1.5 rounded-lg hover:bg-zinc-900 border border-transparent transition-all">
+                            <span class="syn-com">// 4. Invoke just like a normal method</span><br>
+                            <span class="syn-kw">int</span> result = <span class="syn-method">compiledFunc</span>(<span class="syn-num">5</span>, <span class="syn-num">3</span>); <span class="syn-com">// Output: 8</span>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Step Explanation Box -->
+                    <div class="p-4 bg-zinc-900/90 border-t border-zinc-800">
+                        <div class="text-[11px] font-mono uppercase tracking-wider text-purple-400 mb-1" id="step-title-1">Step 1: Compiler AST Emission</div>
+                        <p class="text-xs sm:text-sm text-zinc-300 leading-relaxed" id="step-desc-1">
+                            Because the target type is <code class="font-mono text-purple-300">Expression&lt;Func&lt;...&gt;&gt;</code> instead of a plain <code class="font-mono text-zinc-200">Func&lt;...&gt;</code>, the C# compiler emits factory calls to build an AST instead of compiling IL instructions.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Approach 2: Manual Construction via API -->
+                <div id="approach-card-2" class="hidden lg:flex rounded-2xl bg-csharp-surface border border-zinc-800 overflow-hidden flex-col shadow-xl">
+                    <div class="px-5 py-4 bg-zinc-900/90 border-b border-zinc-800 flex items-center justify-between gap-2">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">Approach 2</span>
+                                <h3 class="font-bold text-white text-base">Manual API Construction</h3>
+                            </div>
+                            <p class="text-xs text-zinc-400 mt-1">Best when building dynamic queries or rules from user input at runtime.</p>
+                        </div>
+                        <button onclick="copyCode('code-block-2', 'Manual Expression API code copied!')" class="p-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 transition-all shrink-0" title="Copy C# Code">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Interactive Code Lines -->
+                    <div class="p-4 sm:p-5 font-mono text-xs sm:text-[13px] leading-relaxed overflow-x-auto bg-zinc-950 flex-1 space-y-1">
+                        <div onclick="selectStep(2, 0)" class="step-row-2 cursor-pointer px-2.5 py-1.5 rounded-lg bg-sky-500/15 border border-sky-500/40 transition-all">
+                            <span class="syn-com">// 1. Define leaf parameter nodes (a and b)</span><br>
+                            <span class="syn-type">ParameterExpression</span> paramA = <span class="syn-type">Expression</span>.<span class="syn-method">Parameter</span>(<span class="syn-kw">typeof</span>(<span class="syn-kw">int</span>), <span class="syn-str">"a"</span>);<br>
+                            <span class="syn-type">ParameterExpression</span> paramB = <span class="syn-type">Expression</span>.<span class="syn-method">Parameter</span>(<span class="syn-kw">typeof</span>(<span class="syn-kw">int</span>), <span class="syn-str">"b"</span>);
+                        </div>
+
+                        <div onclick="selectStep(2, 1)" class="step-row-2 cursor-pointer px-2.5 py-1.5 rounded-lg hover:bg-zinc-900 border border-transparent transition-all">
+                            <span class="syn-com">// 2. Combine leaves into a BinaryExpression body</span><br>
+                            <span class="syn-type">BinaryExpression</span> body = <span class="syn-type">Expression</span>.<span class="syn-method">Add</span>(paramA, paramB);
+                        </div>
+
+                        <div onclick="selectStep(2, 2)" class="step-row-2 cursor-pointer px-2.5 py-1.5 rounded-lg hover:bg-zinc-900 border border-transparent transition-all">
+                            <span class="syn-com">// 3. Wrap body & parameters into root Lambda</span><br>
+                            <span class="syn-type">Expression</span>&lt;<span class="syn-type">Func</span>&lt;<span class="syn-kw">int</span>, <span class="syn-kw">int</span>, <span class="syn-kw">int</span>&gt;&gt; addExpr =<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="syn-type">Expression</span>.<span class="syn-method">Lambda</span>&lt;<span class="syn-type">Func</span>&lt;<span class="syn-kw">int</span>, <span class="syn-kw">int</span>, <span class="syn-kw">int</span>&gt;&gt;(body, paramA, paramB);
+                        </div>
+
+                        <div onclick="selectStep(2, 3)" class="step-row-2 cursor-pointer px-2.5 py-1.5 rounded-lg hover:bg-zinc-900 border border-transparent transition-all">
+                            <span class="syn-com">// 4. Compile and invoke dynamically constructed tree</span><br>
+                            <span class="syn-kw">var</span> compiled = addExpr.<span class="syn-method">Compile</span>();<br>
+                            <span class="syn-type">Console</span>.<span class="syn-method">WriteLine</span>(<span class="syn-method">compiled</span>(<span class="syn-num">10</span>, <span class="syn-num">20</span>)); <span class="syn-com">// Output: 30</span>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Step Explanation Box -->
+                    <div class="p-4 bg-zinc-900/90 border-t border-zinc-800">
+                        <div class="text-[11px] font-mono uppercase tracking-wider text-sky-400 mb-1" id="step-title-2">Step 1: Creating ParameterExpression Leaves</div>
+                        <p class="text-xs sm:text-sm text-zinc-300 leading-relaxed" id="step-desc-2">
+                            Trees are built bottom-up. First, we instantiate <code class="font-mono text-sky-300">ParameterExpression</code> objects representing the input variables <code class="font-mono text-zinc-200">a</code> and <code class="font-mono text-zinc-200">b</code>. Note that variable identity is tracked by object reference, not just string name!
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Hidden raw textareas for clean clipboard copy -->
+            <textarea id="code-block-1" class="sr-only" readonly>using System;
+using System.Linq.Expressions;
+
+class Program
+{
+    static void Main()
+    {
+        // Define an expression tree representing: (a, b) => a + b
+        Expression<Func<int, int, int>> addExpression = (a, b) => a + b;
+
+        // Inspect parts of the expression tree
+        Console.WriteLine($"Body type: {addExpression.Body.NodeType}"); // Output: Add
+        Console.WriteLine($"Parameters: {addExpression.Parameters.Count}"); // Output: 2
+
+        // Compile the expression tree into an executable delegate and invoke it
+        Func<int, int, int> compiledFunc = addExpression.Compile();
+        int result = compiledFunc(5, 3); // 8
+        Console.WriteLine($"Result: {result}");
+    }
+}</textarea>
+            <textarea id="code-block-2" class="sr-only" readonly>using System;
+using System.Linq.Expressions;
+
+class Program
+{
+    static void Main()
+    {
+        // 1. Define the parameters (a and b of type int)
+        ParameterExpression paramA = Expression.Parameter(typeof(int), "a");
+        ParameterExpression paramB = Expression.Parameter(typeof(int), "b");
+
+        // 2. Create the body: a + b
+        BinaryExpression body = Expression.Add(paramA, paramB);
+
+        // 3. Create the complete lambda expression tree
+        Expression<Func<int, int, int>> addExpression = 
+            Expression.Lambda<Func<int, int, int>>(body, paramA, paramB);
+
+        // 4. Compile and run
+        var compiled = addExpression.Compile();
+        Console.WriteLine(compiled(10, 20)); // Output: 30
+    }
+}</textarea>
+        </div>
+    </section>
+
+    <!-- Section 4: Why Use Expression Trees? (Real-World Use Cases) -->
+    <section id="use-cases" class="py-16 sm:py-24">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="max-w-3xl mb-12">
+                <span class="text-xs font-mono uppercase tracking-widest text-purple-400 font-semibold">Real-World Architecture</span>
+                <h2 class="text-2xl sm:text-3xl font-bold text-white mt-1">Why Use Expression Trees?</h2>
+                <p class="text-sm sm:text-base text-zinc-400 mt-2">
+                    Explore how major .NET libraries leverage Expression Trees to translate C# into SQL or eliminate slow reflection overhead.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <!-- Card 1: Dynamic Queries / EF Core SQL Translation Demo -->
+                <div class="rounded-2xl bg-csharp-surface border border-zinc-800 p-6 flex flex-col justify-between shadow-xl">
+                    <div>
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-white">1. Dynamic Queries (LINQ to SQL)</h3>
+                                <p class="text-xs text-zinc-400">How Entity Framework translates C# predicates into database SQL</p>
+                            </div>
+                        </div>
+
+                        <p class="text-sm text-zinc-300 leading-relaxed mb-5">
+                            When you pass a lambda to <code class="font-mono text-emerald-300">IQueryable&lt;T&gt;.Where(...)</code>, EF Core walks the Expression Tree nodes (<code class="font-mono text-xs text-zinc-400">MemberExpression</code>, <code class="font-mono text-xs text-zinc-400">BinaryExpression</code>) and visits each node to emit parameterized SQL rather than loading the entire table into memory.
+                        </p>
+
+                        <!-- Interactive LINQ to SQL Translator Mini-Widget -->
+                        <div class="rounded-xl bg-zinc-950 border border-zinc-800 p-4 space-y-4">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-500">Toggle LINQ Filter Predicate</span>
+                                <div class="flex gap-1.5">
+                                    <button onclick="setSqlDemo(0)" id="sql-btn-0" class="px-2.5 py-1 rounded text-xs font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Age &gt; 18</button>
+                                    <button onclick="setSqlDemo(1)" id="sql-btn-1" class="px-2.5 py-1 rounded text-xs font-mono bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200">IsActive &amp;&amp; Role == "Admin"</button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="text-[11px] font-mono text-purple-400 mb-1">C# IQueryable Expression:</div>
+                                <pre id="linq-csharp-code" class="text-xs font-mono text-zinc-200 bg-zinc-900/80 p-2.5 rounded-lg border border-zinc-800/80 overflow-x-auto">db.Users.Where(u =&gt; u.Age &gt; 18)</pre>
+                            </div>
+
+                            <div class="flex items-center justify-center text-zinc-600">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                </svg>
+                                <span class="text-[11px] font-mono ml-1.5 text-zinc-500">ExpressionVisitor Translation</span>
+                            </div>
+
+                            <div>
+                                <div class="text-[11px] font-mono text-emerald-400 mb-1">Generated SQL Query:</div>
+                                <pre id="linq-sql-code" class="text-xs font-mono text-emerald-300 bg-emerald-950/20 p-2.5 rounded-lg border border-emerald-500/20 overflow-x-auto">SELECT [u].[Id], [u].[Name], [u].[Age]
+FROM [Users] AS [u]
+WHERE [u].[Age] &gt; 18</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: High-Performance Reflection Alternative -->
+                <div class="rounded-2xl bg-csharp-surface border border-zinc-800 p-6 flex flex-col justify-between shadow-xl">
+                    <div>
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-white">2. Fast Reflection Alternative</h3>
+                                <p class="text-xs text-zinc-400">Compile dynamic property accessors &amp; mappers into native IL</p>
+                            </div>
+                        </div>
+
+                        <p class="text-sm text-zinc-300 leading-relaxed mb-5">
+                            Standard <code class="font-mono text-amber-300">PropertyInfo.GetValue()</code> inspects metadata and boxes values on every single call. Serializers (like System.Text.Json) and ORMs (like Dapper) build an Expression Tree once, call <code class="font-mono text-purple-300">.Compile()</code>, and cache the resulting delegate for near-native speed.
+                        </p>
+
+                        <!-- Visual Performance Comparison Bars -->
+                        <div class="rounded-xl bg-zinc-950 border border-zinc-800 p-4 space-y-4">
+                            <div class="text-[11px] font-mono uppercase tracking-wider text-zinc-500">1,000,000 Property Reads Benchmark</div>
+                            
+                            <div>
+                                <div class="flex justify-between text-xs font-mono mb-1">
+                                    <span class="text-zinc-400">Direct C# Property (<code class="text-zinc-300">user.Name</code>)</span>
+                                    <span class="text-emerald-400">~1.2 ms (1.0x)</span>
+                                </div>
+                                <div class="w-full h-2.5 bg-zinc-900 rounded-full overflow-hidden">
+                                    <div class="h-full bg-emerald-500 rounded-full" style="width: 8%"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs font-mono mb-1">
+                                    <span class="text-purple-300">Compiled Expression (<code class="text-purple-200">expr.Compile()</code>)</span>
+                                    <span class="text-purple-400">~1.8 ms (1.5x)</span>
+                                </div>
+                                <div class="w-full h-2.5 bg-zinc-900 rounded-full overflow-hidden">
+                                    <div class="h-full bg-purple-500 rounded-full" style="width: 12%"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-xs font-mono mb-1">
+                                    <span class="text-zinc-400">Standard Reflection (<code class="text-zinc-300">propInfo.GetValue</code>)</span>
+                                    <span class="text-rose-400">~145.0 ms (120x slower)</span>
+                                </div>
+                                <div class="w-full h-2.5 bg-zinc-900 rounded-full overflow-hidden">
+                                    <div class="h-full bg-rose-500 rounded-full" style="width: 100%"></div>
+                                </div>
+                            </div>
+
+                            <div class="pt-2 border-t border-zinc-800/80 text-xs font-mono text-zinc-400">
+                                <span class="text-amber-400">Pro Tip:</span> Cache the compiled <code class="text-zinc-200">Func&lt;T, TProp&gt;</code> in a <code class="text-zinc-200">ConcurrentDictionary</code>—calling <code class="text-zinc-200">.Compile()</code> itself has a one-time setup cost.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-zinc-800/80 py-8 bg-csharp-bg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
+            <div class="flex items-center gap-2">
+                <span class="font-mono text-zinc-300">System.Linq.Expressions</span>
+                <span>•</span>
+                <span>Interactive C# Learning Guide</span>
+            </div>
+            <div>
+                Built for exploring AST nodes, <code class="font-mono text-zinc-400">Expression.Lambda</code>, and runtime compilation.
+            </div>
+        </div>
+    </footer>
+
+    <!-- Interactive Logic -->
+    <script>
+        // ==========================================
+        // 1. TOAST NOTIFICATION HELPER
+        // ==========================================
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const borderColor = type === 'success' ? 'border-emerald-500/40 bg-zinc-900 text-emerald-300' : 'border-rose-500/40 bg-zinc-900 text-rose-300';
+            
+            toast.className = `pointer-events-auto px-4 py-2.5 rounded-xl border ${borderColor} shadow-2xl text-xs font-mono flex items-center gap-2 transition-all duration-300 transform translate-y-2 opacity-0`;
+            toast.innerHTML = `
+                <span class="w-2 h-2 rounded-full ${type === 'success' ? 'bg-emerald-400' : 'bg-rose-400'}"></span>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 2600);
+        }
+
+        function copyCode(textareaId, message) {
+            const textarea = document.getElementById(textareaId);
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
+            try {
+                document.execCommand('copy');
+                showToast(message, 'success');
+            } catch (err) {
+                showToast('Unable to copy code', 'error');
+            }
+        }
+
+        // ==========================================
+        // 2. C# LAMBDA EXPRESSION PARSER & AST BUILDER
+        // ==========================================
+        let currentAst = null;
+        let currentParams = [];
+        let paramValues = { a: 5, b: 3, x: 21, y: 4 };
+        let selectedNodeId = null;
+
+        const OPERATOR_INFO = {
+            '+': { nodeType: 'Add', method: 'Expression.Add(left, right)', returnType: 'int' },
+            '-': { nodeType: 'Subtract', method: 'Expression.Subtract(left, right)', returnType: 'int' },
+            '*': { nodeType: 'Multiply', method: 'Expression.Multiply(left, right)', returnType: 'int' },
+            '/': { nodeType: 'Divide', method: 'Expression.Divide(left, right)', returnType: 'int' },
+            '%': { nodeType: 'Modulo', method: 'Expression.Modulo(left, right)', returnType: 'int' },
+            '>': { nodeType: 'GreaterThan', method: 'Expression.GreaterThan(left, right)', returnType: 'bool' },
+            '<': { nodeType: 'LessThan', method: 'Expression.LessThan(left, right)', returnType: 'bool' },
+            '>=': { nodeType: 'GreaterThanOrEqual', method: 'Expression.GreaterThanOrEqual(left, right)', returnType: 'bool' },
+            '<=': { nodeType: 'LessThanOrEqual', method: 'Expression.LessThanOrEqual(left, right)', returnType: 'bool' },
+            '==': { nodeType: 'Equal', method: 'Expression.Equal(left, right)', returnType: 'bool' },
+            '!=': { nodeType: 'NotEqual', method: 'Expression.NotEqual(left, right)', returnType: 'bool' }
+        };
+
+        // Tokenizer for simple C# arithmetic & comparison expressions
+        function tokenize(exprStr) {
+            const tokens = [];
+            const regex = /\s*(>=|<=|==|!=|\+|\-|\*|\/|%|\>|\<|\(|\)|[a-zA-Z_][a-zA-Z0-9_]*|\d+)\s*/g;
+            let match;
+            let lastIndex = 0;
+
+            while ((match = regex.exec(exprStr)) !== null) {
+                if (match.index !== lastIndex) {
+                    throw new Error(`Unexpected token near "${exprStr.slice(lastIndex, match.index)}"`);
+                }
+                tokens.push(match[1]);
+                lastIndex = regex.lastIndex;
+            }
+            if (lastIndex !== exprStr.length) {
+                throw new Error(`Invalid syntax near "${exprStr.slice(lastIndex)}"`);
+            }
+            return tokens;
+        }
+
+        // Recursive descent parser supporting precedence: Comparison -> Add/Sub -> Mul/Div/Mod -> Primary
+        function parseBodyTokens(tokens, allowedParams) {
+            let pos = 0;
+            let nodeCounter = 1;
+
+            function peek() { return tokens[pos]; }
+            function consume() { return tokens[pos++]; }
+
+            function parseComparison() {
+                let left = parseAdditive();
+                while (['>', '<', '>=', '<=', '==', '!='].includes(peek())) {
+                    const op = consume();
+                    const right = parseAdditive();
+                    const info = OPERATOR_INFO[op];
+                    left = {
+                        id: `node_${nodeCounter++}`,
+                        kind: 'BinaryExpression',
+                        nodeType: info.nodeType,
+                        operator: op,
+                        label: `${info.nodeType} (${op})`,
+                        csharpApi: info.method,
+                        clrType: info.returnType,
+                        left,
+                        right
+                    };
+                }
+                return left;
+            }
+
+            function parseAdditive() {
+                let left = parseMultiplicative();
+                while (['+', '-'].includes(peek())) {
+                    const op = consume();
+                    const right = parseMultiplicative();
+                    const info = OPERATOR_INFO[op];
+                    left = {
+                        id: `node_${nodeCounter++}`,
+                        kind: 'BinaryExpression',
+                        nodeType: info.nodeType,
+                        operator: op,
+                        label: `${info.nodeType} (${op})`,
+                        csharpApi: info.method,
+                        clrType: 'int',
+                        left,
+                        right
+                    };
+                }
+                return left;
+            }
+
+            function parseMultiplicative() {
+                let left = parsePrimary();
+                while (['*', '/', '%'].includes(peek())) {
+                    const op = consume();
+                    const right = parsePrimary();
+                    const info = OPERATOR_INFO[op];
+                    left = {
+                        id: `node_${nodeCounter++}`,
+                        kind: 'BinaryExpression',
+                        nodeType: info.nodeType,
+                        operator: op,
+                        label: `${info.nodeType} (${op})`,
+                        csharpApi: info.method,
+                        clrType: 'int',
+                        left,
+                        right
+                    };
+                }
+                return left;
+            }
+
+            function parsePrimary() {
+                const tok = peek();
+                if (!tok) throw new Error('Unexpected end of expression.');
+
+                if (tok === '(') {
+                    consume(); // '('
+                    const inner = parseComparison();
+                    if (peek() !== ')') throw new Error('Missing closing parenthesis ")"');
+                    consume(); // ')'
+                    return inner;
+                }
+
+                if (/^\d+$/.test(tok)) {
+                    consume();
+                    return {
+                        id: `node_${nodeCounter++}`,
+                        kind: 'ConstantExpression',
+                        nodeType: 'Constant',
+                        value: parseInt(tok, 10),
+                        label: `Constant (${tok})`,
+                        csharpApi: `Expression.Constant(${tok}, typeof(int))`,
+                        clrType: 'int'
+                    };
+                }
+
+                if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tok)) {
+                    consume();
+                    if (!allowedParams.includes(tok)) {
+                        throw new Error(`Identifier "${tok}" is not declared in lambda parameters (${allowedParams.join(', ')}).`);
+                    }
+                    return {
+                        id: `node_${nodeCounter++}`,
+                        kind: 'ParameterExpression',
+                        nodeType: 'Parameter',
+                        name: tok,
+                        label: `Parameter (${tok})`,
+                        csharpApi: `Expression.Parameter(typeof(int), "${tok}")`,
+                        clrType: 'int'
+                    };
+                }
+
+                throw new Error(`Unexpected token "${tok}"`);
+            }
+
+            const rootBody = parseComparison();
+            if (pos < tokens.length) {
+                throw new Error(`Unexpected extra token "${tokens[pos]}"`);
+            }
+            return rootBody;
+        }
+
+        function parseLambdaExpression(rawInput) {
+            const parts = rawInput.split('=>');
+            if (parts.length !== 2) {
+                throw new Error('Expression must contain a single "=>" lambda operator (e.g., (a, b) => a + b).');
+            }
+
+            let paramPart = parts[0].trim();
+            const bodyPart = parts[1].trim();
+            if (!bodyPart) throw new Error('Lambda body cannot be empty.');
+
+            if (paramPart.startsWith('(') && paramPart.endsWith(')')) {
+                paramPart = paramPart.slice(1, -1).trim();
+            }
+
+            const params = paramPart ? paramPart.split(',').map(p => p.trim()).filter(Boolean) : [];
+            if (params.length === 0) {
+                throw new Error('Please provide at least one parameter (e.g., (x) => x > 18).');
+            }
+
+            for (const p of params) {
+                if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(p)) {
+                    throw new Error(`Invalid parameter name "${p}".`);
+                }
+            }
+
+            const tokens = tokenize(bodyPart);
+            const bodyNode = parseBodyTokens(tokens, params);
+
+            const returnType = bodyNode.clrType || 'int';
+            const funcTypeArgs = [...params.map(() => 'int'), returnType].join(', ');
+
+            return {
+                id: 'node_root',
+                kind: 'LambdaExpression',
+                nodeType: 'Lambda',
+                label: `LambdaExpression`,
+                signature: `Func<${funcTypeArgs}>`,
+                params,
+                csharpApi: `Expression.Lambda<Func<${funcTypeArgs}>>(body, ${params.join(', ')})`,
+                clrType: `Expression<Func<${funcTypeArgs}>>`,
+                body: bodyNode
+            };
+        }
+
+        // ==========================================
+        // 3. AST EVALUATION (SIMULATED .Compile())
+        // ==========================================
+        function evaluateNode(node, env) {
+            if (node.kind === 'LambdaExpression') {
+                return evaluateNode(node.body, env);
+            }
+            if (node.kind === 'ConstantExpression') {
+                return node.value;
+            }
+            if (node.kind === 'ParameterExpression') {
+                return env[node.name] ?? 0;
+            }
+            if (node.kind === 'BinaryExpression') {
+                const l = evaluateNode(node.left, env);
+                const r = evaluateNode(node.right, env);
+                switch (node.operator) {
+                    case '+': return l + r;
+                    case '-': return l - r;
+                    case '*': return l * r;
+                    case '/': return r === 0 ? 'DivideByZeroException' : Math.trunc(l / r);
+                    case '%': return r === 0 ? 'DivideByZeroException' : l % r;
+                    case '>': return l > r;
+                    case '<': return l < r;
+                    case '>=': return l >= r;
+                    case '<=': return l <= r;
+                    case '==': return l === r;
+                    case '!=': return l !== r;
+                }
+            }
+            return null;
+        }
+
+        // ==========================================
+        // 4. TREE VISUALIZATION RENDERER
+        // ==========================================
+        function getNodeColorClasses(kind, isSelected) {
+            const ring = isSelected ? 'ring-2 ring-white scale-[1.03]' : 'hover:scale-[1.02]';
+            switch (kind) {
+                case 'LambdaExpression':
+                    return `bg-purple-950/70 border-purple-500 text-purple-100 shadow-lg shadow-purple-500/15 ${ring}`;
+                case 'BinaryExpression':
+                    return `bg-sky-950/70 border-sky-500 text-sky-100 shadow-lg shadow-sky-500/15 ${ring}`;
+                case 'ParameterExpression':
+                    return `bg-emerald-950/70 border-emerald-500 text-emerald-100 shadow-lg shadow-emerald-500/15 ${ring}`;
+                case 'ConstantExpression':
+                    return `bg-amber-950/70 border-amber-500 text-amber-100 shadow-lg shadow-amber-500/15 ${ring}`;
+                default:
+                    return `bg-zinc-900 border-zinc-700 text-zinc-100 ${ring}`;
+            }
+        }
+
+        function getBadgeColor(kind) {
+            switch (kind) {
+                case 'LambdaExpression': return 'text-purple-300 bg-purple-500/20';
+                case 'BinaryExpression': return 'text-sky-300 bg-sky-500/20';
+                case 'ParameterExpression': return 'text-emerald-300 bg-emerald-500/20';
+                case 'ConstantExpression': return 'text-amber-300 bg-amber-500/20';
+                default: return 'text-zinc-300 bg-zinc-800';
+            }
+        }
+
+        function renderNodeRecursive(node) {
+            const isSelected = selectedNodeId === node.id;
+            const colorClasses = getNodeColorClasses(node.kind, isSelected);
+            const badgeClasses = getBadgeColor(node.kind);
+
+            let subtitle = '';
+            if (node.kind === 'LambdaExpression') subtitle = `Params: (${node.params.join(', ')})`;
+            if (node.kind === 'BinaryExpression') subtitle = `NodeType.${node.nodeType}`;
+            if (node.kind === 'ParameterExpression') subtitle = `Name: "${node.name}"`;
+            if (node.kind === 'ConstantExpression') subtitle = `Value: ${node.value}`;
+
+            let childrenHtml = '';
+            if (node.kind === 'LambdaExpression') {
+                childrenHtml = `
+                    <div class="w-px h-6 bg-zinc-700 mx-auto"></div>
+                    <div class="text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1 text-center">Body</div>
+                    ${renderNodeRecursive(node.body)}
+                `;
+            } else if (node.kind === 'BinaryExpression') {
+                childrenHtml = `
+                    <div class="w-px h-5 bg-zinc-700 mx-auto"></div>
+                    <div class="relative flex justify-center gap-4 sm:gap-8 pt-4 border-t border-zinc-700">
+                        <div class="flex flex-col items-center">
+                            <span class="text-[10px] font-mono text-zinc-500 mb-1">Left</span>
+                            ${renderNodeRecursive(node.left)}
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <span class="text-[10px] font-mono text-zinc-500 mb-1">Right</span>
+                            ${renderNodeRecursive(node.right)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="flex flex-col items-center animate-node">
+                    <button 
+                        type="button"
+                        onclick="inspectNode('${node.id}')"
+                        class="px-3.5 py-2.5 rounded-xl border ${colorClasses} transition-all cursor-pointer text-left min-w-[135px] max-w-[210px]">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded ${badgeClasses}">${node.kind}</span>
+                        </div>
+                        <div class="font-mono text-xs sm:text-sm font-bold truncate">${node.label}</div>
+                        <div class="font-mono text-[11px] opacity-75 mt-0.5 truncate">${subtitle}</div>
+                    </button>
+                    ${childrenHtml}
+                </div>
+            `;
+        }
+
+        function findNodeById(node, id) {
+            if (!node) return null;
+            if (node.id === id) return node;
+            if (node.body) return findNodeById(node.body, id);
+            if (node.left) {
+                const foundLeft = findNodeById(node.left, id);
+                if (foundLeft) return foundLeft;
+            }
+            if (node.right) {
+                const foundRight = findNodeById(node.right, id);
+                if (foundRight) return foundRight;
+            }
+            return null;
+        }
+
+        function inspectNode(nodeId) {
+            selectedNodeId = nodeId;
+            const node = findNodeById(currentAst, nodeId) || currentAst;
+            
+            // Re-render tree to show selection ring
+            document.getElementById('tree-canvas').innerHTML = renderNodeRecursive(currentAst);
+
+            // Update Inspector Panel
+            const badge = document.getElementById('inspector-badge');
+            badge.textContent = node.kind;
+            badge.className = `text-[11px] font-mono px-2 py-0.5 rounded border border-white/10 ${getBadgeColor(node.kind)}`;
+
+            const content = document.getElementById('node-inspector-content');
+            content.innerHTML = `
+                <div class="grid grid-cols-3 gap-2 py-1.5 border-b border-zinc-800/80 text-xs">
+                    <span class="font-mono text-zinc-500">NodeType</span>
+                    <span class="col-span-2 font-mono text-zinc-200">ExpressionType.${node.nodeType}</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2 py-1.5 border-b border-zinc-800/80 text-xs">
+                    <span class="font-mono text-zinc-500">CLR Type</span>
+                    <span class="col-span-2 font-mono text-purple-300">${node.clrType}</span>
+                </div>
+                <div class="py-1.5 text-xs">
+                    <span class="font-mono text-zinc-500 block mb-1">Factory API Equivalent:</span>
+                    <code class="block p-2 rounded-lg bg-zinc-950 border border-zinc-800 font-mono text-[11px] text-sky-300 overflow-x-auto">${node.csharpApi}</code>
+                </div>
+            `;
+        }
+
+        function renderParameterInputs() {
+            const container = document.getElementById('param-inputs-container');
+            container.innerHTML = '';
+
+            currentParams.forEach(paramName => {
+                if (paramValues[paramName] === undefined) {
+                    paramValues[paramName] = 5;
+                }
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2';
+                wrapper.innerHTML = `
+                    <label class="font-mono text-xs text-emerald-400 font-bold">${paramName} =</label>
+                    <input 
+                        type="number" 
+                        value="${paramValues[paramName]}" 
+                        oninput="updateParamValue('${paramName}', this.value)"
+                        class="w-full bg-transparent font-mono text-sm text-white outline-none"
+                    >
+                `;
+                container.appendChild(wrapper);
+            });
+
+            updateSimulationResult();
+        }
+
+        function updateParamValue(name, rawVal) {
+            const num = parseInt(rawVal, 10);
+            paramValues[name] = isNaN(num) ? 0 : num;
+            updateSimulationResult();
+        }
+
+        function updateSimulationResult() {
+            if (!currentAst) return;
+            const res = evaluateNode(currentAst, paramValues);
+            const resultEl = document.getElementById('eval-result');
+            const argsPreviewEl = document.getElementById('call-args-preview');
+
+            argsPreviewEl.textContent = currentParams.map(p => paramValues[p] ?? 0).join(', ');
+            resultEl.textContent = String(res);
+
+            if (typeof res === 'boolean') {
+                resultEl.className = `text-2xl font-mono font-bold ${res ? 'text-emerald-400' : 'text-amber-400'}`;
+            } else if (typeof res === 'string') {
+                resultEl.className = 'text-base font-mono font-bold text-rose-400';
+            } else {
+                resultEl.className = 'text-2xl font-mono font-bold text-emerald-400';
+            }
+        }
+
+        function parseAndRender() {
+            const inputEl = document.getElementById('expr-input');
+            const errorEl = document.getElementById('parse-error');
+            const raw = inputEl.value.trim();
+
+            try {
+                const ast = parseLambdaExpression(raw);
+                errorEl.classList.add('hidden');
+                currentAst = ast;
+                currentParams = ast.params;
+                selectedNodeId = ast.id;
+
+                document.getElementById('delegate-sig').textContent = ast.signature;
+                inspectNode(ast.id);
+                renderParameterInputs();
+            } catch (err) {
+                errorEl.textContent = `Syntax Error: ${err.message}`;
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        function loadPreset(exprString) {
+            document.getElementById('expr-input').value = exprString;
+            
+            // Update active styling on preset pills
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                if (btn.textContent.trim() === exprString) {
+                    btn.className = 'preset-btn px-3 py-2 rounded-lg text-xs font-mono bg-purple-600/20 text-purple-300 border border-purple-500/40 hover:bg-purple-600/30 transition-all';
+                } else {
+                    btn.className = 'preset-btn px-3 py-2 rounded-lg text-xs font-mono bg-zinc-900 text-zinc-300 border border-zinc-800 hover:border-zinc-700 transition-all';
+                }
+            });
+
+            parseAndRender();
+        }
+
+        // ==========================================
+        // 5. SIDE-BY-SIDE STEP WALKTHROUGH & TABS
+        // ==========================================
+        const APPROACH_STEPS = {
+            1: [
+                {
+                    title: 'Step 1: Compiler AST Emission',
+                    desc: 'Because the target type is <code class="font-mono text-purple-300">Expression&lt;Func&lt;...&gt;&gt;</code> instead of a plain <code class="font-mono text-zinc-200">Func&lt;...&gt;</code>, the C# compiler emits factory calls to build an AST instead of compiling IL instructions.'
+                },
+                {
+                    title: 'Step 2: Runtime Tree Inspection',
+                    desc: 'You can traverse <code class="font-mono text-purple-300">.Body</code>, <code class="font-mono text-purple-300">.Parameters</code>, and <code class="font-mono text-purple-300">.NodeType</code> at runtime to see what operations the code performs without executing it.'
+                },
+                {
+                    title: 'Step 3: JIT Compilation via .Compile()',
+                    desc: 'Calling <code class="font-mono text-purple-300">.Compile()</code> dynamically generates lightweight IL bytecode in memory and returns a standard, strongly-typed <code class="font-mono text-zinc-200">Func&lt;int, int, int&gt;</code> delegate.'
+                },
+                {
+                    title: 'Step 4: Native-Speed Execution',
+                    desc: 'Once compiled, invoking <code class="font-mono text-purple-300">compiledFunc(5, 3)</code> runs at full compiled speed—identical to a regular C# method.'
+                }
+            ],
+            2: [
+                {
+                    title: 'Step 1: Creating ParameterExpression Leaves',
+                    desc: 'Trees are built bottom-up. First, we instantiate <code class="font-mono text-sky-300">ParameterExpression</code> objects representing input variables <code class="font-mono text-zinc-200">a</code> and <code class="font-mono text-zinc-200">b</code>. Variable identity is tracked by object reference, not just string name!'
+                },
+                {
+                    title: 'Step 2: Constructing the BinaryExpression Body',
+                    desc: '<code class="font-mono text-sky-300">Expression.Add(paramA, paramB)</code> links the two parameter leaf nodes under an addition parent node, automatically validating that both operands support <code class="font-mono text-zinc-200">+</code>.'
+                },
+                {
+                    title: 'Step 3: Binding Parameters in Expression.Lambda',
+                    desc: '<code class="font-mono text-sky-300">Expression.Lambda&lt;TDelegate&gt;</code> wraps the body expression and declares which parameter nodes form the function signature.'
+                },
+                {
+                    title: 'Step 4: Compile & Execute Dynamic Code',
+                    desc: 'Even though this logic was assembled entirely from API calls at runtime, <code class="font-mono text-sky-300">.Compile()</code> produces a real executable delegate.'
+                }
+            ]
+        };
+
+        function selectStep(approachNum, stepIdx) {
+            const rows = document.querySelectorAll(`.step-row-${approachNum}`);
+            const activeBg = approachNum === 1 ? 'bg-purple-500/15 border-purple-500/40' : 'bg-sky-500/15 border-sky-500/40';
+
+            rows.forEach((row, idx) => {
+                if (idx === stepIdx) {
+                    row.className = `step-row-${approachNum} cursor-pointer px-2.5 py-1.5 rounded-lg ${activeBg} border transition-all`;
+                } else {
+                    row.className = `step-row-${approachNum} cursor-pointer px-2.5 py-1.5 rounded-lg hover:bg-zinc-900 border border-transparent transition-all`;
+                }
+            });
+
+            const stepData = APPROACH_STEPS[approachNum][stepIdx];
+            document.getElementById(`step-title-${approachNum}`).textContent = stepData.title;
+            document.getElementById(`step-desc-${approachNum}`).innerHTML = stepData.desc;
+        }
+
+        function switchApproachTab(tabNum) {
+            const card1 = document.getElementById('approach-card-1');
+            const card2 = document.getElementById('approach-card-2');
+            const btn1 = document.getElementById('tab-btn-1');
+            const btn2 = document.getElementById('tab-btn-2');
+
+            if (tabNum === 1) {
+                card1.classList.remove('hidden');
+                card1.classList.add('flex');
+                card2.classList.add('hidden');
+                card2.classList.remove('flex');
+                btn1.className = 'flex-1 py-2.5 text-xs font-semibold rounded-lg bg-purple-600 text-white transition-all';
+                btn2.className = 'flex-1 py-2.5 text-xs font-semibold rounded-lg text-zinc-400 hover:text-white transition-all';
+            } else {
+                card2.classList.remove('hidden');
+                card2.classList.add('flex');
+                card1.classList.add('hidden');
+                card1.classList.remove('flex');
+                btn2.className = 'flex-1 py-2.5 text-xs font-semibold rounded-lg bg-sky-600 text-white transition-all';
+                btn1.className = 'flex-1 py-2.5 text-xs font-semibold rounded-lg text-zinc-400 hover:text-white transition-all';
+            }
+        }
+
+        // ==========================================
+        // 6. LINQ TO SQL DEMO TOGGLE
+        // ==========================================
+        const SQL_DEMOS = [
+            {
+                csharp: 'db.Users.Where(u => u.Age > 18)',
+                sql: `SELECT [u].[Id], [u].[Name], [u].[Age]\nFROM [Users] AS [u]\nWHERE [u].[Age] > 18`
+            },
+            {
+                csharp: 'db.Users.Where(u => u.IsActive && u.Role == "Admin")',
+                sql: `SELECT [u].[Id], [u].[Name], [u].[Role]\nFROM [Users] AS [u]\nWHERE ([u].[IsActive] = 1) AND ([u].[Role] = N'Admin')`
+            }
+        ];
+
+        function setSqlDemo(index) {
+            document.getElementById('linq-csharp-code').textContent = SQL_DEMOS[index].csharp;
+            document.getElementById('linq-sql-code').textContent = SQL_DEMOS[index].sql;
+
+            [0, 1].forEach(i => {
+                const btn = document.getElementById(`sql-btn-${i}`);
+                if (i === index) {
+                    btn.className = 'px-2.5 py-1 rounded text-xs font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+                } else {
+                    btn.className = 'px-2.5 py-1 rounded text-xs font-mono bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200';
+                }
+            });
+        }
+
+        // Initialize on page load
+        document.getElementById('expr-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') parseAndRender();
+        });
+        window.addEventListener('DOMContentLoaded', () => {
+            parseAndRender();
+        });
+    </script>
+</body>
+</html>
